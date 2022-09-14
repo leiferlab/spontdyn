@@ -11,6 +11,7 @@ signal_kwargs = {"remove_spikes": True,  "smooth": True,
 
 sigs = []
 for folder in ds_list:
+    #rec = wormdm.data.recording(folder,legacy=True,rectype="3d",settings={"zUmOverV":200./10.})
     sig = wormdm.signal.Signal.from_file(folder,"gRaw",**signal_kwargs)
     sigs.append(sig)
     
