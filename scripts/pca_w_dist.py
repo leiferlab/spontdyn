@@ -1,10 +1,13 @@
-import numpy as np, matplotlib.pyplot as plt
+import numpy as np, matplotlib.pyplot as plt, re, sys
 from sklearn.decomposition import PCA
 import wormdatamodel as wormdm
 
 ds_list_file = "/projects/LEIFER/francesco/spontdyn_list.txt"
-tagss = ["488 AML32","488 AML70","505 AML32","505 AML70","488 AKS521.1.i","505+405simul AML32"]
-#cs = ["C0","C1","C0","C1","C1","C0"]
+tagss = ["488 AML32","488 AML70","505 AML32","505 AML70","488 AKS521.1.i","488 AKS522.1.i","505+405simul AML32",]
+cs = ["C0","C0","C1","C1","C2","C3","C0"]
+tagss = ["488 AML32","488 AML70","488 AKS521.1.i","488 AKS522.1.i",]
+cs = ["C0","C0","C2","C3"]
+tagss = ["488 AML32","488 AML70"]#,#["505 AML32","505 AML70"]#["488 AML32","488 AML70"]#,
 cs = ["C"+str(i) for i in np.arange(len(tagss))]
 
 signal_kwargs = {"remove_spikes": True,  "smooth": True, 
@@ -13,7 +16,8 @@ signal_kwargs = {"remove_spikes": True,  "smooth": True,
                  "smooth_n": 13, "smooth_poly": 1,
                  "photobl_appl":True}
 
-plot = False
+plot = "--plot" in sys.argv
+average = "--average" in sys.argv
 
 # Define spectral ranges in which to look for oscillations
 T_range = np.array([300.,30.])
@@ -23,6 +27,13 @@ print("spectral range",np.around(f_range,3))
 
 fig4 = plt.figure(4)
 ax4 = fig4.add_subplot(111)
+
+fig5 = plt.figure(5)
+ax5 = fig5.add_subplot(111)
+
+if average:
+    fig6 = plt.figure(6)
+    ax6 = fig6.add_subplot(111)
 
 for k in np.arange(len(tagss)):
     tags = tagss[k]
@@ -35,6 +46,7 @@ for k in np.arange(len(tagss)):
     expl_vars = []
     stdws = []
     maxfs = []
+    ps = []
     for i in np.arange(n):
         folder = ds_list[i]
         rec = wormdm.data.recording(folder,legacy=True,rectype="3d",settings={"zUmOverV":200./10.})
@@ -74,16 +86,17 @@ for k in np.arange(len(tagss)):
             # Normalize by number of weights
             stdw /= len(weights_sorted)
             
-            if j in [0]:#[0,1]: 
+            if (average and j in [0,1]) or (not average and j in [0]):
                 stdws.append(stdw)
                 expl_vars.append(expl_var[jp])
                 maxfs.append(maxf)
+                ps.append(p[jp])
             
             if plot:    
                 ax = fig1.add_subplot(3,3,j+1)
                 ax.plot(np.arange(len(pcs[:,jp]))*rec.Dt,pcs[:,jp])
                 #ax.plot(f[f0:f1],np.absolute(ftpc[f0:f1,jp])**2)
-                ax.set_title(str(np.around(maxf,3)))
+                ax.set_title(str(np.around(maxf,3))+","+str(np.around(p[jp],3)))
                 
                 ax = fig2.add_subplot(3,3,j+1)
                 ax.bar(np.arange(len(weights_sorted)),weights_sorted)
@@ -93,22 +106,46 @@ for k in np.arange(len(tagss)):
             ax3 = fig3.add_subplot(111)
             ax3.imshow(sig.data.T,aspect="auto")
                 
-            fig1.suptitle("PCs sorted by power in ("+",".join(f_range.astype(str))+") Hz")
-            fig2.suptitle("Weights of PCs sorted by power in ("+",".join(f_range.astype(str))+") Hz, and internally sorted")
+            fig1.suptitle("PCs sorted by power in ("+",".join(np.around(f_range,3).astype(str))+") Hz")
+            fig2.suptitle("Weights of PCs sorted by power in ("+",".join(np.around(f_range,3).astype(str))+") Hz, and internally sorted")
             fig1.tight_layout()
             fig2.tight_layout()
             plt.show()
     
+    # Replace strain names with genotype
+    tags = re.sub("AML32","wt",tags)
+    tags = re.sub("AML70","lite-1",tags)
+    tags = re.sub("AKS521.1.i","gur-3",tags)
+    tags = re.sub("AKS522.1.i","lite-1;gur-3",tags)
+    
     maxfs = np.array(maxfs)
     expl_vars = np.array(expl_vars)
     stdws = np.array(stdws)
+    ps = np.array(ps)
     
-    #maxfs = 0.5*(maxfs[::2]+maxfs[1::2])
-    #expl_vars = 0.5*(expl_vars[::2]+expl_vars[1::2])
-    #stdws = 0.5*(stdws[::2]+stdws[1::2])
-
-    markersize = (stdws**3)/np.max(stdws**3)*100
-    ax4.scatter(expl_vars,maxfs,s=markersize,label=tags,color=cs[k])
+    # Make histogram of frequencies. If average, plot both first and second PC
+    # separately.
+    if not average:
+        ax5.hist(maxfs,label=tags,color=cs[k],alpha=0.2)
+    else:
+        ax5.hist(maxfs[::2],label=tags,color=cs[k],alpha=0.3)
+        ax6.hist(maxfs[1::2],label=tags,color=cs[k],alpha=0.2)
+    
+    if average: 
+        maxfs = (maxfs[::2]*ps[::2]+maxfs[1::2]*ps[1::2])/(ps[::2]+ps[1::2])
+        ##maxfs = 0.5*(maxfs[::2]+maxfs[1::2])
+        expl_vars = (expl_vars[::2]+expl_vars[1::2])
+        stdws = (stdws[::2]+stdws[1::2])
+    
+    # Make scatter plot
+    x = expl_vars
+    y = maxfs
+    m = stdws
+    markersize = (m**3)/np.max(m**3)*100
+    
+    ax4.scatter(x,y,s=markersize,label=tags,color=cs[k])
+    
+    
 
 
 ax4.set_xlabel("explained variance")
@@ -118,4 +155,15 @@ ax4.set_title("PC with largest power in spectral range "+str(np.around(f_range,3
               "\"~what fraction of neurons are in this PC\"")
 ax4.legend()
 fig4.tight_layout()
+
+ax5.set_xlabel("frequency (Hz)")
+ax5.set_ylabel("number")
+ax5.legend()
+fig5.tight_layout()
+
+if average:
+    ax6.set_xlabel("frequency (Hz)")
+    ax6.set_ylabel("number")
+    ax6.legend()
+    fig6.tight_layout()
 plt.show()
