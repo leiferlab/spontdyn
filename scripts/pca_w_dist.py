@@ -1,18 +1,24 @@
-import numpy as np, matplotlib.pyplot as plt, re, sys
+import numpy as np, matplotlib.pyplot as plt, matplotlib.cm as cm, re, sys
 from sklearn.decomposition import PCA
 from scipy.stats import kstest
 import wormdatamodel as wormdm
+from mpl_toolkits.mplot3d.art3d import Line3DCollection
+
+def multicolor(ax,x,y,z,t,c):
+    points = np.array([x,y,z]).transpose().reshape(-1,1,3)
+    segs = np.concatenate([points[:-1],points[1:]],axis=1)
+    lc = Line3DCollection(segs, cmap=c)
+    lc.set_array(t)
+    ax.add_collection3d(lc)
+    ax.set_xlim(np.min(x),np.max(x))
+    ax.set_ylim(np.min(y),np.max(y))
+    ax.set_zlim(np.min(z),np.max(z))
 
 ds_list_file = "/projects/LEIFER/francesco/spontdyn_list.txt"
 tagss = ["488 AML32","488 AML70","505 AML32","505 AML70","488 AKS521.1.i","488 AKS522.1.i","505+405simul AML32",]
 group = [0,0,1,1,0,0,0]
-cs = ["C"+str(g) for g in group]
-
-#cs = ["C"+str(i) for i in np.arange(len(tagss))]
-
-#tagss = ["488 AML32","488 AML70","505+405simul AML32"]
-#group = [0,0,1,1]
-#cs = ["C"+str(g) for g in group]
+cs = ["C"+str(g) for g in group] # Color by group
+cs = ["C"+str(i) for i in np.arange(len(tagss))] # Each tag its own color
 
 signal_kwargs = {"remove_spikes": True,  "smooth": True, 
                  "nan_interp": True, 
@@ -28,6 +34,7 @@ T_range = np.array([300.,50.])
 f_range = 1./T_range
 print("spectral range",np.around(f_range,3))
 
+# Create figures for later
 fig4 = plt.figure(4)
 ax4 = fig4.add_subplot(111)
 
@@ -41,32 +48,44 @@ if average:
     fig6 = plt.figure(6)
     ax6 = fig6.add_subplot(111)
     
+# Array to store peak frequencies below
 maxfss = np.empty(len(np.unique(group)),dtype=object)
 for i in np.arange(len(maxfss)): maxfss[i] = []
 
+# Iterate over tags
 for k in np.arange(len(tagss)):
+    # Get list of recordings with that tag
     tags = tagss[k]
     ds_list = wormdm.signal.file.load_ds_list(ds_list_file,tags=tags,exclude_tags=None)
 
+    # Number of rows and columns for plots 
     n = len(ds_list)
     ncols = int(np.sqrt(n))+1
     nrows = int(np.sqrt(n))+1
 
+    # Prepare lists to store values
     expl_vars = []
     stdws = []
     maxfs = []
     ps = []
     n_neurons = []
     for i in np.arange(n):
+        # Load files
         folder = ds_list[i]
         rec = wormdm.data.recording(folder,legacy=True,rectype="3d",settings={"zUmOverV":200./10.})
         sig = wormdm.signal.Signal.from_file(folder,"gRaw",**signal_kwargs)
         n_neurons.append(sig.data.shape[1])
         
+        # Run PCA
         pca = PCA()
         pcs = pca.fit_transform(sig.data)
         weights = pca.components_
         expl_var = pca.explained_variance_ratio_
+        
+        # Make 3d plots of the PC       
+        fig80 = plt.figure(80+k)
+        ax = fig80.add_subplot(ncols,nrows,i+1,projection="3d")
+        multicolor(ax,pcs[:,0],pcs[:,1],pcs[:,2],np.arange(pcs.shape[0])*rec.Dt,cm.viridis)
         
         if plot:
             fig11 = plt.figure(11)
@@ -74,6 +93,7 @@ for k in np.arange(len(tagss)):
             ax.plot(expl_var,'o')
             ax.set_title(tags)
         
+        # Compute Fourier transform and frequency axis
         ftpc = np.fft.fft(pcs,axis=0,norm="ortho")
         f = np.fft.fftfreq(pcs.shape[0],d=rec.Dt)
         df = f[1]-f[0]
@@ -83,6 +103,7 @@ for k in np.arange(len(tagss)):
         f1 = np.argmin(np.abs(f-f_range[1]))
         p = np.sum(np.absolute(ftpc[f0:f1])**2,axis=0)*df
         sorter = np.argsort(p)[::-1]
+        #print("NOT SORTING"); sorter = np.arange(len(p))
         
         # Make figures for individual recording and store variables for global plot
         if plot:
@@ -98,11 +119,17 @@ for k in np.arange(len(tagss)):
             # Internally sort the weights of the PC to see their distribution
             weights_sorted = np.sort(np.abs(weights[jp]))[::-1]
             
+            # Compute an estimate of the number of the neurons involved in each
+            # PC: Make a sorted bar plot of the absolute values of the weights,
+            # compute the standard deviation of the bar plot, and then divide 
+            # by the total number of neurons in the recording.
             avgw = np.sum(weights_sorted*np.arange(len(weights_sorted))) / np.sum(weights_sorted)
             stdw = np.sqrt(np.sum((weights_sorted-avgw)**2)/len(weights_sorted))
             # Normalize by number of weights
             stdw /= len(weights_sorted)
             
+            # Store for plotting at the end of the script. If average is True,
+            # store both the 0-th and 1st PCs.
             if (average and j in [0,1]) or (not average and j in [0]):
                 stdws.append(stdw)
                 expl_vars.append(expl_var[jp])
@@ -167,9 +194,9 @@ for k in np.arange(len(tagss)):
         stdws = (stdws[::2]+stdws[1::2])
     
     # Make scatter plot
-    x = expl_vars
+    x = stdws#expl_vars
     y = maxfs
-    m = stdws
+    m = expl_vars#stdws
     markersize = (m**3)/np.max(m**3)*100
     
     ax4.scatter(x,y,s=markersize,label=tags,color=cs[k])
@@ -194,7 +221,7 @@ for g in np.unique(group):
     ax7.hist(maxfss[g],bins=30,range=f_range,label=lbl,color="C"+str(g),alpha=0.2,)
 ax7.set_xlabel("frequency (Hz)")
 ax7.set_ylabel("number")
-pvals = str(pval).split("e")[0][:3]+"e"+str(pval).split("e")[1]
+pvals = str(pval)#str(pval).split("e")[0][:3]+"e"+str(pval).split("e")[1]
 ax7.set_title("p ("+alt+") "+pvals)
 ax7.legend()
 fig7.tight_layout()
