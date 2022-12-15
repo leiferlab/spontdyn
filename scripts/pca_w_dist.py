@@ -15,22 +15,25 @@ def multicolor(ax,x,y,z,t,c):
     ax.set_zlim(np.min(z),np.max(z))
 
 ds_list_file = "/projects/LEIFER/francesco/spontdyn_list.txt"
-tagss = ["488 AML32","488 AML70","505 AML32","505 AML70","488 AKS521.1.i","488 AKS522.1.i","505+405simul AML32",]
-group = [0,0,1,1,0,0,0]
+tagss = ["488 AML32","488 AML70","505 AML32","505 AML70","488 AKS521.1.i","488 AKS522.1.i","AML32H2O2 10mM",]
+group = [0,0,1,1,1,1,0]
 cs = ["C"+str(g) for g in group] # Color by group
-cs = ["C"+str(i) for i in np.arange(len(tagss))] # Each tag its own color
+#cs = ["C"+str(i) for i in np.arange(len(tagss))] # Each tag its own color
 
 signal_kwargs = {"remove_spikes": True,  "smooth": True, 
                  "nan_interp": True, 
                  "smooth_mode": "sg_causal", 
                  "smooth_n": 13, "smooth_poly": 1,
                  "photobl_appl":True}
+                 
+signal_kwargs_tmac = {"remove_spikes": True,  "smooth": False, 
+                     "nan_interp": True, "photobl_appl": False}
 
 plot = "--plot" in sys.argv
 average = "--average" in sys.argv
 
 # Define spectral ranges in which to look for oscillations
-T_range = np.array([300.,50.])
+T_range = np.array([100.,30.])
 f_range = 1./T_range
 print("spectral range",np.around(f_range,3))
 
@@ -73,7 +76,8 @@ for k in np.arange(len(tagss)):
         # Load files
         folder = ds_list[i]
         rec = wormdm.data.recording(folder,legacy=True,rectype="3d",settings={"zUmOverV":200./10.})
-        sig = wormdm.signal.Signal.from_file(folder,"gRaw",**signal_kwargs)
+        #sig = wormdm.signal.Signal.from_file(folder,"gRaw",**signal_kwargs)
+        sig = wormdm.signal.Signal.from_file(folder,"tmac",**signal_kwargs_tmac)
         n_neurons.append(sig.data.shape[1])
         
         # Run PCA
