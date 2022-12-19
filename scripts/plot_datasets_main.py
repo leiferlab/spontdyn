@@ -2,28 +2,29 @@ import numpy as np, matplotlib.pyplot as plt, matplotlib.cm as cm, re, sys
 from sklearn.decomposition import PCA
 from scipy.stats import kstest
 import wormdatamodel as wormdm
-from mpl_toolkits.mplot3d.art3d import Line3DCollection
+import mistofrutta as mf
 
 plt.rc('xtick',labelsize=18)
 plt.rc('ytick',labelsize=18)
 plt.rc('axes',labelsize=18)
 
-def multicolor(ax,x,y,z,t,c):
-    points = np.array([x,y,z]).transpose().reshape(-1,1,3)
-    segs = np.concatenate([points[:-1],points[1:]],axis=1)
-    lc = Line3DCollection(segs, cmap=c)
-    lc.set_array(t)
-    ax.add_collection3d(lc)
-    ax.set_xlim(np.min(x),np.max(x))
-    ax.set_ylim(np.min(y),np.max(y))
-    ax.set_zlim(np.min(z),np.max(z))
+# Hardcoding the timestep of the recording to remove the dependency from 
+# additional files that should otherwise be added to the exported_data.
+Dt = 1./6.
 
+# Folder in which to save the figures
+# TODO CHANGE THIS TO THE DESIRED FOLDER
+fig_dst = "/projects/LEIFER/francesco/spontdyn/"
+
+# TODO UNCOMMENT THE VARIABLE signal_kwargs COMMENT OUT signal_kwargs_tmac
+# signal_kwargs = {"preprocess": False}
 signal_kwargs_tmac = {"remove_spikes": True,  "smooth": False, 
-                     "nan_interp": True, "photobl_appl": False}
+                     "nan_interp": False, "photobl_appl": False}
 
-
+# TODO ADJUST TO THE CORRECT FOLDER
+# Likely something like <>/exported_data2/BrainScanner<>
 ds_list = ["/projects/LEIFER/PanNeuronal/20220112/BrainScanner20220112_193000/",
-           "/projects/LEIFER/PanNeuronal/20220110/BrainScanner20220110_152224/",#"/projects/LEIFER/PanNeuronal/20220104/BrainScanner20220104_125532/",
+           "/projects/LEIFER/PanNeuronal/20220104/BrainScanner20220104_125532/",
            "/projects/LEIFER/PanNeuronal/20220415/BrainScanner20220415_151628/",
            "/projects/LEIFER/PanNeuronal/20221125/BrainScanner20221125_184646/",
            ]
@@ -37,11 +38,13 @@ cax = fig.add_subplot(gs[0,1])
 n = len(ds_list)
 ax = []
 axb = []
-crop_t = 10*60*6
+crop_t = 9*60*6
 for i in np.arange(n):
     # Load files
     folder = ds_list[i]
-    rec = wormdm.data.recording(folder,legacy=True,rectype="3d",settings={"zUmOverV":200./10.})
+    
+    # TODO UNCOMMENT THE FOLLOWING LINE AND COMMENT THE NEXT
+    #sig = wormdm.signal.Signal.from_file(folder,"activity.txt",**signal_kwargs)
     sig = wormdm.signal.Signal.from_file(folder,"tmac",**signal_kwargs_tmac)
     if sig.data.shape[0]>crop_t:
         data = sig.data[:crop_t]
@@ -56,18 +59,18 @@ for i in np.arange(n):
     weights = pca.components_
     expl_var = pca.explained_variance_ratio_
     
-    '''u,s,v = np.linalg.svd(der,full_matrices=False)
-    u *= s # denormalize'''
     sorter = np.argsort(weights[0])[::1]
     
     ax.append(fig.add_subplot(gs[1+hsp*i:1+hsp*(i+1),:3]))
     if i>0:
-        axb.append(fig.add_subplot(gs[1+hsp*i:1+hsp*(i+1),3],projection="3d",sharex=axb[0],sharey=axb[0],sharez=axb[0]))
+        axb.append(fig.add_subplot(gs[1+hsp*i:1+hsp*(i+1),3],projection="3d",
+                                   sharex=axb[0],sharey=axb[0],sharez=axb[0]))
     else:
         axb.append(fig.add_subplot(gs[1+hsp*i:1+hsp*(i+1),3],projection="3d"))
     
     # Make colormap of the recording
-    im = ax[-1].imshow(data[:,sorter].T-1.,cmap="viridis",vmin=-0.8,vmax=0.8,aspect="auto")
+    im = ax[-1].imshow(data[:,sorter].T-1.,cmap="viridis",
+                       vmin=-0.8,vmax=0.8,aspect="auto")
     if i == 0:
         plt.colorbar(im,cax=cax,use_gridspec=True,orientation="horizontal")
     ax[-1].set_ylim(-0.5,data.shape[1]+0.5)
@@ -75,8 +78,8 @@ for i in np.arange(n):
     ax[-1].set_yticklabels(["0\n","\n"+str(data.shape[1])])
     
     # Make 3d plots of the PC
-    multicolor(axb[-1],pcs[:,0],pcs[:,1],pcs[:,2],np.arange(pcs.shape[0])*rec.Dt,cm.inferno)
-    #multicolor(axb[-1],u[:,0],u[:,1],u[:,2],np.arange(u.shape[0])*rec.Dt,cm.viridis)
+    mf.plt.multicolor_3d_line(axb[-1],pcs[:,0],pcs[:,1],pcs[:,2],
+                              np.arange(pcs.shape[0])*Dt,cm.inferno)
     labelpad=10
     axb[-1].set_xlabel("PC0'",labelpad=labelpad,rotation=45)
     axb[-1].set_ylabel("PC1'",labelpad=labelpad,rotation=-45)
@@ -89,7 +92,7 @@ for i in np.arange(n):
         ax[-1].set_xticks([])
         
 for ax_ in ax: 
-    ax_.set_xlim(-0.5,10*60*6)
+    ax_.set_xlim(-0.5,9*60*6)
     ax_.set_ylabel("Neuron")    
 
 cax.xaxis.tick_top()
@@ -97,7 +100,7 @@ cax.set_xlabel(r"$\Delta F/F$")
 cax.xaxis.set_label_position("top")
 cax.set_xticks([-0.8,0,0.8])
 
-xticks = np.arange(3)*5*60
+xticks = np.arange(4)*3*60
 ax[-1].set_xticks(xticks*6)
 ax[-1].set_xticklabels([str(a/60) for a in xticks])
 ax[-1].set_xlabel("Time (min)")
@@ -122,6 +125,7 @@ for axb_ in axb:
         tickl.set_size(10)
 
 fig.tight_layout()
-fig.savefig("/projects/LEIFER/francesco/spontdyn/fig1_other.pdf",dpi=300,bbox_inches="tight")
+fig.savefig(fig_dst+"fig1_other.pdf",dpi=300)
+fig.savefig(fig_dst+"fig1_other.png",dpi=300)
     
 plt.show()

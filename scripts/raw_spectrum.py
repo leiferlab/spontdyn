@@ -1,37 +1,60 @@
-import numpy as np, matplotlib.pyplot as plt, re, sys
+import numpy as np, matplotlib.pyplot as plt, re, sys, os
 from sklearn.decomposition import PCA
-from scipy.stats import kstest, ttest_ind
+from scipy.stats import ttest_ind
 import wormdatamodel as wormdm
-import pumpprobe as pp
+import mistofrutta as mf
+
+
+#############################################################################
+#############################################################################
+# To reproduce figures: 
+# GO THROUGH THE TODO AND FOLLOW THE INSTRUCTIONS THERE
+#############################################################################
+#############################################################################
+
+# Hardcoding the timestep of the recording to remove the dependency from 
+# additional files that should otherwise be added to the exported_data.
+Dt = 1./6.
 
 plt.rc('xtick',labelsize=18)
 plt.rc('ytick',labelsize=18)
 plt.rc('axes',labelsize=18)
 
-exp_data_folder = "/projects/LEIFER/francesco/spontdyn/exported_data/"
-
 export_data = "--export-data" in sys.argv
 no_normalize = "--no-normalize" in sys.argv
 normalize_recordings = "--normalize-recordings" in sys.argv and not no_normalize
 normalize_neurons_f0 = "--normalize-neurons-f0" in sys.argv and not no_normalize
-normalize_neurons = not no_normalize and not normalize_recordings and not normalize_neurons_f0
+normalize_neurons = not no_normalize and not normalize_recordings \
+                    and not normalize_neurons_f0
 
+# Folder in which to save the figures
+# TODO CHANGE THIS TO THE DESIRED FOLDER
+fig_dst = "/projects/LEIFER/francesco/spontdyn/"
+
+# Folders in which to export data
+exp_data_folder = "/projects/LEIFER/francesco/spontdyn/exported_data/"
+exp_data_folder2 = "/projects/LEIFER/francesco/spontdyn/exported_data2/"
+
+# File containing the list of the recordings.
+# TODO CHANGE THIS TO THE LOCATION OF THIS FILE ON YOUR COMPUTER
 ds_list_file = "/projects/LEIFER/francesco/spontdyn_list.txt"
-tagss = ["488 AML32","505 AML32","488 AML70","488 AKS521.1.i","488 AKS522.1.i","AML32H2O2 10mM"]#
+tagss = ["488 AML32",
+         "505 AML32",
+         "488 AML70",
+         "488 AKS521.1.i",
+         "488 AKS522.1.i",
+         "AML32H2O2 10mM"]
 group = [0,1,0,1,1,0]
-cs = ["C"+str(g) for g in group] # Color by group
+#cs = ["C"+str(g) for g in group] # Color by group
 cs = ["C"+str(i) for i in np.arange(len(tagss))] # Each tag its own color
 
-signal_kwargs = {"remove_spikes": True,  "smooth": False, 
-                 "nan_interp": True, "photobl_appl": True}
-
+# TODO UNCOMMENT THE VARIABLE signal_kwargs COMMENT OUT signal_kwargs_tmac
+# signal_kwargs = {"preprocess": False}
 signal_kwargs_tmac = {"remove_spikes": True,  "smooth": False, 
                      "nan_interp": True, "photobl_appl": False}
 
 # Define spectral ranges in which to look for oscillations
 T_range = np.array([100.,30.])
-#print("USING 66 s")
-#T_range = np.array([66.,30.])
 f_range = 1./T_range
 f = np.linspace(f_range[0],f_range[1],100)
 print("spectral range",np.around(f_range,3))
@@ -73,7 +96,8 @@ for k in np.arange(len(tagss)):
     # Get list of recordings with given tags
     tags = tagss[k]
     g = group[k]
-    ds_list = wormdm.signal.file.load_ds_list(ds_list_file,tags=tags,exclude_tags=None)
+    ds_list = wormdm.signal.file.load_ds_list(ds_list_file,tags=tags,
+                                              exclude_tags=None)
     n = len(ds_list)
     
     # Replace strain names with genotype
@@ -86,22 +110,33 @@ for k in np.arange(len(tagss)):
     for i in np.arange(n):
         # Load files
         folder = ds_list[i]
-        rec = wormdm.data.recording(folder,legacy=True,rectype="3d",settings={"zUmOverV":200./10.})
-        #sig = wormdm.signal.Signal.from_file(folder,"gRaw",**signal_kwargs)
+        
+        # TODO UNCOMMENT THE FOLLOWING 2 LINES AND COMMENT THE NEXT
+        #sig = wormdm.signal.Signal.from_file(folder,"activity.txt",
+        #                                      **signal_kwargs)
         sig = wormdm.signal.Signal.from_file(folder,"tmac",**signal_kwargs_tmac)
+        
         if export_data:
-            np.savetxt(exp_data_folder+re.sub(" ","_",tags)+"-"+str(i)+".txt",sig.data)
+            np.savetxt(exp_data_folder+re.sub(" ","_",tags)+"-"+str(i)+".txt",
+                       sig.data)
+            folder_ = exp_data_folder2+folder.split("/")[-2]+"/"
+            if not os.path.exists(folder_):
+                os.mkdir(folder_)
+            np.savetxt(folder_+"activity.txt",sig.data,
+                       header='#{"method": "box", "version": "tmac",'+\
+                              '"ref_index": "likely Nerve multiple"')
         
         ##############################
         # ACT ON THE INDIVIDUAL TRACES
         ##############################
         
         # Compute Fourier transform
-        ftsig = np.fft.fft(sig.data-np.average(sig.data,axis=0),axis=0,norm="ortho")*rec.Dt
+        ftsig = np.fft.fft(sig.data-np.average(sig.data,axis=0),
+                           axis=0,norm="ortho")*Dt
         ftsig = np.absolute(ftsig)**2
         
         # Slice frequency range specified above
-        f_ = np.fft.fftfreq(sig.data.shape[0],d=rec.Dt)
+        f_ = np.fft.fftfreq(sig.data.shape[0],d=Dt)
         f0 = np.argmin(np.abs(f_-f_range[0]))
         f1 = np.argmin(np.abs(f_-f_range[1]))
         df = f_[1]-f_[0]
@@ -110,7 +145,7 @@ for k in np.arange(len(tagss)):
         integrand = ftsig[f0:f1]
         p = np.zeros(integrand.shape[1])
         for l in np.arange(integrand.shape[1]):
-            p[l] = pp.integral(integrand[:,l],df,8)
+            p[l] = mf.num.integral(integrand[:,l],df)
         ps[k] = np.append(ps[k],p)
         
         # Calculate fraction of power inside frequency range
@@ -123,7 +158,6 @@ for k in np.arange(len(tagss)):
         elif no_normalize:
             totp = 1.0
         
-        #fracp = np.nansum(ftsig[f0:f1]/totp,axis=0)*df
         fracp = p/totp
         fracps[k] = np.append(fracps[k],fracp)
         
@@ -139,7 +173,9 @@ for k in np.arange(len(tagss)):
         ################
         # ACT ON THE PCS
         ################
-        u,s,v = np.linalg.svd(sig.data-np.average(sig.data,axis=0),full_matrices=False)
+        
+        u,s,v = np.linalg.svd(sig.data-np.average(sig.data,axis=0),
+                              full_matrices=False)
         u *= s # denormalize
         
         # Compute Fourier transform
@@ -148,21 +184,10 @@ for k in np.arange(len(tagss)):
         integrand = ftu[f0:f1]
         up = np.zeros(integrand.shape[1])
         for l in np.arange(integrand.shape[1]):
-            up[l] = pp.integral(integrand[:,l],df,8)
+            up[l] = mf.num.integral(integrand[:,l],df)
         
         # Choose which singular vectors to use
         sel = np.arange(3) # first 3
-        #sel = np.argsort(up)[::-1][:3]
-        
-        # Compute an estimate of the number of the neurons involved in each
-        # PC: Make a sorted bar plot of the absolute values of the weights,
-        # compute the standard deviation of the bar plot, and then divide 
-        # by the total number of neurons in the recording.
-        '''for jp in np.arange(v.shape[1]):
-            weights_sorted = np.sort(np.abs(v.T[jp]))[::-1]
-            avgw = np.sum(weights_sorted*np.arange(len(weights_sorted))) / np.sum(weights_sorted)
-            stdw = np.sqrt(np.sum((weights_sorted-avgw)**2)/len(weights_sorted))
-            up[jp] *= stdw'''
         
         ups[k] = np.append(ups[k],up[sel])
         
@@ -195,15 +220,14 @@ dy = 0.05
 lbls = []
 
 # Indices of control datasets
-ref_tag_i = tagss.index("488 AKS521.1.i")
-print(ref_tag_i)
+ref_tag_i = tagss.index("488 AML32")
+ttest_direction = "greater"
 
 # Starting y of the lines for significance of difference (in ax5)
 max_fracps_ = np.empty(0)
 for mfr in max_fracps:
     max_fracps_ = np.append(max_fracps_,mfr)
 y_sgf = np.max(max_fracps_)/4
-#y_sgf = np.quantile(max_fracps_,0.7)
 
 for k in np.arange(len(tagss)):
     tags = tagss[k]
@@ -219,34 +243,34 @@ for k in np.arange(len(tagss)):
     z = ups[k]
     
     ax3.bar(k*dn,np.average(y),color=cs[k],width=bar_width,alpha=0.6,label=tags)
-    ax3.scatter(k*dn+np.random.random(len(fracps[k]))*bar_width/2 - bar_width/4, fracps[k], color=cs[k],s=0.5)
+    ax3.scatter(k*dn+np.random.random(len(fracps[k]))*bar_width/2 - bar_width/4,
+                fracps[k], color=cs[k],s=0.5)
     
-    parts = ax5.violinplot(y,positions=[k],showmeans=False,showextrema=False,quantiles=None)
+    parts = ax5.violinplot(y,positions=[k],showmeans=False,
+                           showextrema=False,quantiles=None)
     for pc in parts['bodies']:
         pc.set_facecolor(cs[k])
         pc.set_edgecolor(cs[k])
-    '''
-    ax5.boxplot(y,positions=[k],boxprops={"color":cs[k],"linewidth":2},medianprops={"color":cs[k],"linewidth":2},widths=bar_width,showfliers=False,whis=(0,100))
-    #ax5.scatter(k*dn+np.random.random(len(y))*bar_width/2 - bar_width/4, y, edgecolor=cs[k], facecolor="white",s=10,alpha=0.8,)
-    x_scatter = k*dn + pp.simple_beeswarm(y)*bar_width
-    ax5.scatter(x_scatter,y,edgecolor=cs[k],facecolor=cs[k],s=50,alpha=0.8,)
-    '''
-    #ax5.axhline(np.average(y),c=cs[k],alpha=0.5)
     
-    ax6.boxplot(z,positions=[k],boxprops={"color":cs[k],"linewidth":2},medianprops={"color":cs[k],"linewidth":2},widths=bar_width,showfliers=False,whis=(0,100))
-    #ax6.scatter(k*dn+np.random.random(len(z))*bar_width/2 - bar_width/4, z, edgecolor=cs[k], facecolor="white",s=10,alpha=0.8,)
-    x_scatter_2 = k*dn + pp.simple_beeswarm(z)*bar_width/2
+    ax6.boxplot(z,positions=[k],boxprops={"color":cs[k],"linewidth":2},
+                medianprops={"color":cs[k],"linewidth":2},widths=bar_width,
+                showfliers=False,whis=(0,100))
+    x_scatter_2 = k*dn + mf.plt.simple_beeswarm(z)*bar_width/2
     ax6.scatter(x_scatter_2,z,edgecolor=cs[k],facecolor=cs[k],s=50,alpha=0.8,)
     
-    # Significance of difference from 488 AML32 for ax3 and ax5 (fracps)
+    # Significance of difference from 488 AML32
     if k!=ref_tag_i:
-        #stats,pval = kstest(np.ravel(fracps[ref_tag_i]),np.ravel(fracps[k]),alternative="less")
-        stats,pval = ttest_ind(np.ravel(fracps[ref_tag_i]),np.ravel(fracps[k]),equal_var=False,alternative="less")
-        print("pval", pval, "stats", stats)
-        stars = pp.p_to_stars(pval)
+        stats,pval = ttest_ind(np.ravel(fracps[ref_tag_i]),np.ravel(fracps[k]),
+                               equal_var=False,alternative=ttest_direction)
+        #print("pval", pval, "stats", stats)
+        stars = mf.plt.p_to_stars(pval)
+            
         y0avg = np.average(fracps[ref_tag_i])
         dyy = (np.average(fracps[k])-y0avg)/y0avg
-        print("###DF/F of",tagss[k],"is",np.around(dyy,2),"smaller than AML32_488 with p",np.format_float_scientific(pval,1))
+        smallergreater = "smaller" if np.sign(dyy)==-1 else "greater"
+        print("###DF/F of",tagss[k],"is",np.around(dyy,2),smallergreater,
+              "than "+tagss[ref_tag_i]+" with p",
+              np.format_float_scientific(pval,1))
         
         if stars not in ["",]:
             if stars == "n.s.": stars = ""
@@ -258,15 +282,45 @@ for k in np.arange(len(tagss)):
             x2 = ref_tag_i
             h = 0.0002#50
             y_sgf += 2*h
-            ax5.plot([x1, x1, x2, x2], [y_sgf, y_sgf+h, y_sgf+h, y_sgf], lw=1.5, color="gray")
+            ax5.plot([x1, x1, x2, x2], [y_sgf, y_sgf+h, y_sgf+h, y_sgf], lw=1.5,
+                     color="gray")
+            ax5.plot(x1,y_sgf,'v',color="gray")
             signdyy = "+" if np.sign(dyy)==1 else "-"
-            ax5.text(0.5*(x1+x2), y_sgf+h+h/5.0, signdyy+str(int(abs(dyy)*100))+"% "+stars, ha="center", color="gray")
+            ax5.text(0.5*(x1+x2), y_sgf+h+h/5.0,signdyy+str(int(abs(dyy)*100))+\
+                     "% "+stars, ha="center", color="gray")
             
     # Plot histogram of the fractional powers
     ax4.hist(fracps[k],label=tags,alpha=0.2)
     
     # Append tags to list of xticklabels to be used below.
     lbls.append(tags)
+    
+# Add relative increase due to H2O2, just as above for the general control
+k = tagss.index("AML32H2O2 10mM")
+k2 = tagss.index("505 AML32")
+ttest_direction = "less"
+stats,pval = ttest_ind(np.ravel(fracps[k2]),np.ravel(fracps[k]),equal_var=False,
+                       alternative=ttest_direction)
+#print("pval", pval, "stats", stats)
+stars = mf.plt.p_to_stars(pval)
+y0avg = np.average(fracps[k2])
+dyy = (np.average(fracps[k])-y0avg)/y0avg
+smallergreater = "smaller" if np.sign(dyy)==-1 else "greater"
+print("###DF/F of",tagss[k],"is",np.around(dyy,2),smallergreater,"than "+\
+      tagss[ref_tag_i]+" with p",np.format_float_scientific(pval,1))
+if stars not in ["",]:
+    if stars == "n.s.": stars = "p="+str(np.around(pval,2))
+    x1 = k
+    x2 = k2
+    h = 0.0002
+    y_sgf += 2*h
+    ax5.plot([x1, x1, x2, x2], [y_sgf, y_sgf+h, y_sgf+h, y_sgf], lw=1.5,
+             color="gray")
+    ax5.plot(x1,y_sgf,'v',color="gray")
+    signdyy = "+" if np.sign(dyy)==1 else "-"
+    ax5.text(0.5*(x1+x2), y_sgf+h+h/5.0, signdyy+str(int(abs(dyy)*100))+"% "+\
+             stars, ha="center", color="gray")
+
 
 if no_normalize:
     ax3.set_ylabel("power in "+str(np.around(f_range,3))+" Hz")
@@ -286,8 +340,6 @@ fig4.tight_layout()
 
 ax5.set_xticks(np.arange(len(tagss)))
 ax5.set_xticklabels(lbls)
-#ax5.set_yticks([0,0.1,0.2,0.3])
-#ax5.set_ylim(None,y_sgf+3*h)
 ax5.spines.right.set_visible(False)
 ax5.spines.top.set_visible(False)
 if no_normalize:
@@ -295,7 +347,8 @@ if no_normalize:
 else:
     ax5.set_ylabel("Fraction of power in "+str(np.around(f_range,3))+" Hz")
 fig5.tight_layout()
-fig5.savefig("/projects/LEIFER/francesco/spontdyn/power_spectrum_bars.pdf",dpi=300,bbox_inches="tight")
+fig5.savefig(fig_dst+"power_spectrum_bars.pdf",dpi=300,bbox_inches="tight")
+fig5.savefig(fig_dst+"power_spectrum_bars.png",dpi=300,bbox_inches="tight")
 
 ax6.set_xticks(np.arange(len(tagss)))
 ax6.set_xticklabels(lbls)
@@ -304,8 +357,10 @@ ax6.set_yticklabels(["0","0.5","1",],fontsize=18)
 ax6.spines.right.set_visible(False)
 ax6.spines.top.set_visible(False)
 if no_normalize:
-    ax6.set_ylabel("Power in "+str(np.around(f_range,3))+" Hz\ntop 3 PCs",)
+    ax6.set_ylabel("Power in "+str(np.around(f_range,3))+\
+                   " Hz\nin each of the top 3 PCs",)
 fig6.tight_layout()
-fig6.savefig("/projects/LEIFER/francesco/spontdyn/power_spectrum_bars_PCs.pdf",dpi=300,bbox_inches="tight")
+fig6.savefig(fig_dst+"power_spectrum_bars_PCs.pdf",dpi=300,bbox_inches="tight")
+fig6.savefig(fig_dst+"power_spectrum_bars_PCs.png",dpi=300,bbox_inches="tight")
 
 plt.show()
