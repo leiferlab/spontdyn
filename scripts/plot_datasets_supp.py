@@ -26,7 +26,7 @@ signal_kwargs_tmac = {"remove_spikes": True,  "smooth": False,
 
 # File containing the list of the recordings.
 # TODO CHANGE THIS TO THE LOCATION OF THIS FILE ON YOUR COMPUTER
-ds_list_file = "/projects/LEIFER/francesco/spontdyn_list.txt"
+ds_list_file = "/projects/LEIFER/francesco/spontdyn_list2.txt"
 tagss = ["488 AML32",
          "505 AML32",
          "488 AML70",
