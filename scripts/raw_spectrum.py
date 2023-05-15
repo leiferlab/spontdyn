@@ -5,6 +5,7 @@ from scipy.signal import savgol_filter as savgol
 import wormdatamodel as wormdm
 import mistofrutta as mf
 import jPCA
+import utilities
 
 
 #############################################################################
@@ -24,10 +25,37 @@ plt.rc('axes',labelsize=18)
 
 export_data = "--export-data" in sys.argv
 no_normalize = "--no-normalize" in sys.argv
-normalize_recordings = "--normalize-recordings" in sys.argv and not no_normalize
-normalize_neurons_f0 = "--normalize-neurons-f0" in sys.argv and not no_normalize
+normalize_range2 = "--normalize-range2" in sys.argv
+normalize_recordings = "--normalize-recordings" in sys.argv and not no_normalize and not normalize_range2
+normalize_neurons_f0 = "--normalize-neurons-f0" in sys.argv and not no_normalize and not normalize_range2
 normalize_neurons = not no_normalize and not normalize_recordings \
                     and not normalize_neurons_f0
+use_jpca = "--use-jpca" in sys.argv      
+if use_jpca:
+    print("*Using jPCA (should be num_comp = 2")
+# Select from what quantity to compute the power
+from_u_of_ft = "--power-from-u-of-ft" in sys.argv
+from_ft_of_u = not from_u_of_ft
+
+num_comp = 1
+for s in sys.argv:
+    sa = s.split(":")
+    if sa[0] == "--num-comp": num_comp=int(sa[1])
+    
+# Define spectral ranges in which to look for oscillations
+T_range = np.array([100.,30.])
+f_range = 1./T_range
+f = np.linspace(f_range[0],f_range[1],100)
+print("*spectral range",np.around(f_range,3))
+T_range2 = np.array([500.,100.])
+f_range2 = 1./T_range2
+f2 = np.linspace(f_range2[0],f_range2[1],100)
+print("*spectral range2",np.around(f_range2,3))
+
+
+if from_u_of_ft: print("*Using power from SVD of Fourier transform")
+else: print("*Using power from Fourier transform of SVD")
+    
 
 # Folder in which to save the figures
 # TODO CHANGE THIS TO THE DESIRED FOLDER
@@ -69,12 +97,6 @@ for k in np.arange(len(tagss)):
 signal_kwargs_tmac = {"remove_spikes": True,  "smooth": False, 
                      "nan_interp": True, "photobl_appl": False}
 
-# Define spectral ranges in which to look for oscillations
-T_range = np.array([100.,30.])
-f_range = 1./T_range
-f = np.linspace(f_range[0],f_range[1],100)
-print("spectral range",np.around(f_range,3))
-
 # Prepare figures
 fig1 = plt.figure(1)
 ax1 = fig1.add_subplot(111)
@@ -90,6 +112,8 @@ fig6 = plt.figure(6,figsize=(12,8))
 ax6 = fig6.add_subplot(111)
 fig7 = plt.figure(7,figsize=(15,6))
 ax7s = [fig7.add_subplot(len(tagss)//2,len(tagss)//2,k+1) for k in range(len(tagss))]
+fig8 = plt.figure(8,figsize=(12,8))
+ax8 = fig8.add_subplot(111)
 
 # Array to store peak frequencies (of each neuron or PC)
 maxfss = np.empty(len(np.unique(tagss)),dtype=object)
@@ -117,6 +141,8 @@ for i in np.arange(len(ups)): ups[i] = np.empty(0)
 max_fracps = np.zeros(len(fracps))
 max_ups = np.zeros(len(ups))
 
+n_neurons_pc_0 = np.empty(len(tagss),dtype=object)
+
 # Iterate over tags
 for k in np.arange(len(tagss)):
     # Get list of recordings with given tags
@@ -133,6 +159,7 @@ for k in np.arange(len(tagss)):
     tags = re.sub("AKS522.1.i","lite-1;gur-3",tags)
     
     avgfts = []
+    neurons_in_pc_ = []
     for i in np.arange(n):
         # Load files
         folder = ds_list[i]
@@ -169,6 +196,9 @@ for k in np.arange(len(tagss)):
         f0 = np.argmin(np.abs(f_-f_range[0]))
         f1 = np.argmin(np.abs(f_-f_range[1]))
         df = f_[1]-f_[0]
+        # secondary range
+        f0_2 = np.argmin(np.abs(f_-f_range2[0]))
+        f1_2 = np.argmin(np.abs(f_-f_range2[1]))
         
         # Calculate the absolute power inside frequency range
         integrand = ftsig[f0:f1]
@@ -184,6 +214,11 @@ for k in np.arange(len(tagss)):
             totp = np.sum(ftsig[f0:f0+3])*df
         elif normalize_recordings:
             totp = np.sum(ftsig)*df
+        elif normalize_range2:
+            integrand2 = ftsig[f0_2:f1_2]
+            totp = np.zeros(integrand2.shape[1])
+            for l in np.arange(integrand2.shape[1]):
+                totp[l] = mf.num.integral(integrand2[:,l],df)
         elif no_normalize:
             totp = 1.0
         
@@ -197,9 +232,7 @@ for k in np.arange(len(tagss)):
         ################
         # ACT ON THE PCS
         ################
-        use_jpca = False
         if use_jpca:
-            num_comp = 2
             jpca = jPCA.JPCA(num_jpcs=num_comp)
             #reshaped_data = [np.array([a]).T for a in sig.data.T]
             u, _, _, jvc = jpca.fit([sig.data,],
@@ -215,21 +248,22 @@ for k in np.arange(len(tagss)):
             #plt.show()
         else:
             # Compute regular SVD
-            num_comp = 1
+            num_comp = 2
             data_ = sig.data-np.average(sig.data,axis=0)
             u,s,v = np.linalg.svd(data_,full_matrices=False)
             u *= s # denormalize
+            neurons_in_pc = utilities.neurons_in_pc(v)
             
-            # Compute SVD of Fourier transform
-            data2_ = np.power(np.absolute(np.fft.fft(data_,axis=0)),2)
+            # Compute SVD of the power spectrum
+            #data2_ = np.power(np.absolute(np.fft.fft(data_,axis=0)),2)
+            # What if I compute the SVD of the Fourier transform instead?
+            data2_ = np.fft.fft(data_,axis=0)
             freq2 = np.fft.fftfreq(data_.shape[0],d=Dt)
             u2,s2,v2 = np.linalg.svd(data2_,full_matrices=False)
             u2 *= s2
+            neurons_in_pc2 = utilities.neurons_in_pc(v2)
         
         # Compute power inside range for the PC
-        # Select from what quantity
-        from_ft_of_u = False
-        from_u_of_ft = True
         if from_ft_of_u:
             # Compute Fourier transform of the regular SVD
             ftu = np.fft.fft(u,axis=0,norm="ortho")
@@ -240,16 +274,13 @@ for k in np.arange(len(tagss)):
                 up[l] = mf.num.integral(integrand[:,l],df)
         elif from_u_of_ft:
             # Use the SVD of the Fourier transform of the data
-            '''plt.figure(200)
-            plt.plot(freq2,np.abs(u2[:,0]))
-            plt.plot(freq2,np.abs(u2[:,1]))
-            plt.plot(freq2,np.abs(u2[:,2]))
-            plt.plot(freq2,np.abs(u2[:,4]))
-            plt.show()'''
             integrand = np.absolute(u2[f0:f1])
+            if normalize_range2: integrand2 = np.absolute(u2[f0_2:f1_2])
             up = np.zeros(integrand.shape[1])
             for l in np.arange(integrand.shape[1]):
                 up[l] = mf.num.integral(integrand[:,l],df)
+                if normalize_range2:
+                    up[l] /= mf.num.integral(integrand2[:,l],df)
                 
         # Choose which singular vectors to use
         sel = np.arange(num_comp) 
@@ -276,29 +307,34 @@ for k in np.arange(len(tagss)):
                 u2__ = np.absolute(u2[:,m])
                 #u2__[~np.logical_and(freq2>f_range[0]/1,freq2<f_range[1]*1)] = 0.
                 u2__[freq2<0] = 0.0
+                '''THIS IS TO FIND LOCAL MAXIMA
                 u2__b = np.copy(u2__)
                 u2__der = np.diff(u2__)#savgol(u2__,3,1,1)
                 u2__der = np.append(u2__der,u2__der[-1])
                 u2__der_s = np.sign(u2__der)
                 zeros = np.append(False,np.diff(u2__der_s)<0)
                 u2__[~zeros] = 0.0
-                maxf = freq2[np.argmax(u2__)]
-                plt.figure(1000)
-                plt.plot(freq2,u2__b)
+                #maxf = freq2[np.argmax(u2__)]
+                #maxf = np.sum(freq2[zeros]*u2__[zeros])/np.sum(u2__[zeros])'''
+                maxf = np.sum(freq2*u2__)/np.sum(u2__)
+                '''plt.figure(1000)
+                print(tags)
+                plt.plot(freq2,u2__)
                 plt.axvline(maxf)
                 plt.twinx()
-                plt.plot(freq2,u2__der,c="C1")
+                #plt.plot(freq2,u2__der,c="C1")
                 plt.xlim(0,0.05)
-                plt.show()
+                plt.show()'''
                 maxfss[k].append(maxf)
                 maxfss_w[k].append(s2[m]/np.sum(s2))
                 maxf_this_rec.append(maxf)
         # Average of the peak frequencies of this recording
         avgmaxf[k].append(np.average(maxf_this_rec))#np.sum(maxf_this_rec*s2[sel])/np.sum(s2[sel]))####correct s2 if needed
-        
+        neurons_in_pc_.append(np.average(neurons_in_pc[:2]))
     
     max_fracps[k] = np.nanmax(fracps[k])
     max_ups[k] = np.nanmax(ups[k])
+    n_neurons_pc_0[k] = neurons_in_pc_
         
     avgfts = np.array(avgfts)
     avgavgft = np.average(avgfts,axis=0)
@@ -397,6 +433,7 @@ for k in np.arange(len(tagss)):
     # FIG 3,5,6: FRACTION OF POWER FOR EACH NEURON AND PC
     y = fracps[k]
     z = ups[k]
+    z2 = n_neurons_pc_0[k]
     
     ax3.bar(k*dn,np.average(y),color=cs[k],width=bar_width,alpha=0.6,label=tags)
     ax3.scatter(k*dn+np.random.random(len(fracps[k]))*bar_width/2 - bar_width/4,
@@ -418,6 +455,12 @@ for k in np.arange(len(tagss)):
     ax6.scatter(x_scatter_2,z,edgecolor=cs[k],facecolor=cs[k],s=50,alpha=0.8,)
     
     ax7s[k].scatter(maxfss_w[k],maxfss[k],c=cs[k],label=tags)
+    
+    ax8.boxplot(z2,positions=[k],boxprops={"color":cs[k],"linewidth":2},
+                medianprops={"color":cs[k],"linewidth":2},widths=bar_width,
+                showfliers=False,whis=(0,100))
+    x_scatter_2 = k*dn + mf.plt.simple_beeswarm(z2)*bar_width/2
+    ax8.scatter(x_scatter_2,z2,edgecolor=cs[k],facecolor=cs[k],s=50,alpha=0.8,)
     
     # Significance of difference from 488 AML32
     if k!=ref_tag_i:
@@ -572,6 +615,16 @@ if no_normalize:
 fig6.tight_layout()
 fig6.savefig(fig_dst+"power_spectrum_bars_PCs.pdf",dpi=300,bbox_inches="tight")
 fig6.savefig(fig_dst+"power_spectrum_bars_PCs.png",dpi=300,bbox_inches="tight")
+
+ax8.set_xticks(np.arange(len(tagss)))
+ax8.set_xticklabels(lbls)
+ax8.spines.right.set_visible(False)
+ax8.spines.top.set_visible(False)
+if no_normalize:
+    ax8.set_ylabel("Number of neurons in the first "+str(num_comp)+" PCs")
+fig8.tight_layout()
+fig8.savefig(fig_dst+"neurons_in_pc_bars_PCs.pdf",dpi=300,bbox_inches="tight")
+fig8.savefig(fig_dst+"neurons_in_pc_bars_PCs.png",dpi=300,bbox_inches="tight")
 
 for k in np.arange(len(tagss)):
     ax7s[k].axhline(f_range[0],c="k")
