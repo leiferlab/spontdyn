@@ -5,7 +5,7 @@ echo "AND REMOVE --export-data FROM LINE 8 OF THIS SCRIPT"
 echo ""
 echo ""
 
-python raw_spectrum.py --no-normalize --export-data
+python raw_spectrum.py --export-data
 python plot_datasets_main.py
 python plot_datasets_supp.py
 

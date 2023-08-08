@@ -4,12 +4,12 @@ from scipy.stats import kstest
 import wormdatamodel as wormdm
 from mpl_toolkits.mplot3d.art3d import Line3DCollection
 
-#############################################################################
+
 #############################################################################
 # To reproduce figures: 
 # GO THROUGH THE TODO AND FOLLOW THE INSTRUCTIONS THERE
 #############################################################################
-#############################################################################
+
 
 plt.rc('xtick',labelsize=12)
 plt.rc('ytick',labelsize=12)
@@ -17,7 +17,7 @@ plt.rc('axes',labelsize=14)
 
 # Folder in which to save the figures
 # TODO CHANGE THIS TO THE DESIRED FOLDER
-fig_dst = "/projects/LEIFER/francesco/spontdyn/"
+fig_dst = "/projects/LEIFER/Wayan/LightEvokedDynamics/figures manuscript/"
 
 # TODO UNCOMMENT THE VARIABLE signal_kwargs COMMENT OUT signal_kwargs_tmac
 # signal_kwargs = {"preprocess": False}
@@ -26,13 +26,14 @@ signal_kwargs_tmac = {"remove_spikes": True,  "smooth": False,
 
 # File containing the list of the recordings.
 # TODO CHANGE THIS TO THE LOCATION OF THIS FILE ON YOUR COMPUTER
-ds_list_file = "/projects/LEIFER/francesco/spontdyn_list.txt"
+ds_list_file = "/projects/LEIFER/Wayan/Code/spontdyn/spontdyn_list_sort.txt"
 tagss = ["488 AML32",
          "505 AML32",
          "488 AML70",
          "488 AKS521.1.i",
          "488 AKS522.1.i",
-         "AML32H2O2 10mM"]
+         "AML32H2O2 10mM",
+	 "AKS521.1.iH2O2 10mM"]
 
 max_n_ds = 0
 for k in np.arange(len(tagss)):
@@ -58,14 +59,17 @@ for k in np.arange(len(tagss)):
     n = len(ds_list)
     
     tags = tagss[k]
-    tags_ = re.sub("AML32H2O2 10mM","505 WT\nH$_2$O$_2$",tags)
-    tags_ = re.sub("488","488 nm",tags_)
-    tags_ = re.sub("505","505 nm",tags_)
-    tags_ = re.sub("AML32","WT",tags_)
-    tags_ = re.sub("AML70",r"$lite-1$",tags_)
-    tags_ = re.sub("AKS521.1.i",r"$gur-3$",tags_)
-    tags_ = re.sub("AKS522.1.i",r"$lite-1;gur-3$",tags_)
-    cax.set_title(tags_+"\n",fontsize=16,)
+    tags = re.sub("AML32H2O2 10mM","505 WT\nH$_2$O$_2$",tags)
+    tags = re.sub("AKS521.1.iH2O2 10mM","505 $gur-3$\nH$_2$O$_2$",tags)
+    tags = re.sub("488","488 nm",tags)
+    tags = re.sub("505","505 nm",tags)
+    tags = re.sub("AML32","WT",tags)
+    tags = re.sub("AML70",r"$lite-1$",tags)
+    tags = re.sub("AKS521.1.i",r"$gur-3$",tags)
+    tags = re.sub("AKS522.1.i",r"$lite-1;gur-3$",tags)
+
+    cax.set_title(tags+"\n",fontsize=16,)
+    cax.set_title(tags+"\n",fontsize=16,)
     
     for i in np.arange(n):
         # Load files
@@ -116,7 +120,7 @@ for k in np.arange(len(tagss)):
 
 #fig.suptitle("   /    ".join(tagss))
 fig.tight_layout()
-fig.savefig(fig_dst+"figS.pdf",dpi=300,bbox_inches="tight")
-fig.savefig(fig_dst+"figS.png",dpi=300,bbox_inches="tight")
+fig.savefig(fig_dst+"figS1.pdf",dpi=300,bbox_inches="tight")
+fig.savefig(fig_dst+"figS1.png",dpi=300,bbox_inches="tight")
     
 plt.show()
