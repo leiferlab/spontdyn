@@ -32,7 +32,7 @@ ds_list = ["/projects/LEIFER/PanNeuronal/20230326/BrainScanner20230326_145406/",
 
 tags = ["488 nm WT","505 nm WT","488 nm gur-3","505 nm wt H$_2$O$_2$"]
 
-fig = plt.figure(1,figsize=(12,12))
+fig = plt.figure(1,figsize=(12,18))
 hsp = 10
 hsp_0 = 5#1
 gs = fig.add_gridspec(hsp*len(ds_list)+hsp_0, 4)
@@ -80,15 +80,16 @@ for i in np.arange(n):
     ax[-1].set_yticks([data.shape[1],0])
     ax[-1].set_yticklabels([str(data.shape[1])+"\n","\n0"])
     
+    
     # Make 3d plots of the PC
     lc = mf.plt.multicolor_3d_line(axb[-1],pcs[:,0],pcs[:,1],pcs[:,2],
-                              np.arange(pcs.shape[0])*Dt,cm.inferno)
+                              np.arange(pcs.shape[0])*Dt,cm.gist_heat)
     if i==0:
         plt.colorbar(lc,cax=cax2,use_gridspec=True,orientation="horizontal")
     labelpad=10
     axb[-1].set_xlabel("PC1'",labelpad=labelpad,rotation=45)
     axb[-1].set_ylabel("PC2'",labelpad=labelpad,rotation=-45)
-    axb[-1].set_zlabel("PC3'",labelpad=labelpad,rotation=0)
+    axb[-1].set_zlabel("PC3'",labelpad=labelpad,rotation=-90)
     axb[-1].tick_params(axis='x', which='major', labelsize=12)
     axb[-1].tick_params(axis='y', which='major', labelsize=12)
     axb[-1].tick_params(axis='z', which='major', labelsize=12)
@@ -98,7 +99,7 @@ for i in np.arange(n):
         
 for ax_ in ax: 
     ax_.set_xlim(-0.5,9*60*6)
-    ax_.set_ylabel("Neuron")    
+    #ax_.set_ylabel("Neuron")    
 
 cax.xaxis.tick_top()
 cax.set_xlabel(r"$\Delta F/F$")

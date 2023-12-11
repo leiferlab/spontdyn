@@ -6,8 +6,10 @@ import wormdatamodel as wormdm
 import mistofrutta as mf
 import jPCA
 from scipy.stats import mannwhitneyu
-#import statsmodels.stats.multitest as smt
 import mne.stats as ms
+import matplotlib.cm as cm
+
+
 
 
 
@@ -72,6 +74,7 @@ group = np.arange(len(tagss))
 #cs = ["C"+str(g) for g in group] # Color by group
 cs = ["C"+str(i) for i in np.arange(len(tagss))] # Each tag its own color
 
+
 # Convert tags to plot-friendly labels
 lbls = []
 for k in np.arange(len(tagss)):
@@ -102,13 +105,13 @@ f_plot = np.linspace(0.0002,.045,120)
 
 
 # Prepare figures
-fig1 = plt.figure(1,figsize=(12,8))
+fig1 = plt.figure(1,figsize=(13,8))
 ax1 = fig1.add_subplot(111)
 fig2 = plt.figure(2,figsize=(12,8))
 ax2 = fig2.add_subplot(111)
 fig3 = plt.figure(3,figsize=(12,8))
 ax3 = fig3.add_subplot(111)
-fig4 = plt.figure(4,figsize=(12,8))
+fig4 = plt.figure(4,figsize=(13,8))
 ax4 = fig4.add_subplot(111)
 fig5 = plt.figure(5,figsize=(12,8))
 ax5 = fig5.add_subplot(111)
@@ -334,8 +337,8 @@ for k in np.arange(len(tagss)):
     cdf= np.cumsum(avgavgft)
     cdf = cdf/np.sum(avgavgft)    
     
-    ax2.plot(f_plot,avgavgft,label=tags,c=cs[k], lw = 2) # normalized power vs frequency
-    ax3.plot(f_plot,cdf,label=tags,c=cs[k],lw = 2) # CDF vs frequency    
+    ax2.plot(f_plot,avgavgft,label=tags,c=cs[k], lw = 2,alpha=1) # normalized power vs frequency
+    ax3.plot(f_plot,cdf,label=tags,c=cs[k],lw = 2,alpha=1) # CDF vs frequency    
     
 
 # Parameters for box plots
@@ -353,14 +356,14 @@ max_avgfracp_ = np.empty(0)
 for mfr in max_avgfracp:
     max_avgfracp_ = np.append(max_avgfracp_,mfr)
 y_sgf_avgfracp = np.max(max_avgfracp_)
-h_avgfracp = y_sgf_avgfracp*0.025
+h_avgfracp = y_sgf_avgfracp*0.03
 
 #FIG 4:  frequency below which resides 50% of the total spectral power
 max_freq_below_ = np.empty(0)
 for mfr in max_freq_below:
     max_freq_below_ = np.append(max_freq_below_,mfr)
 y_sgf_freq = np.max(max_freq_below_)
-h_freq = y_sgf_freq*0.025
+h_freq = y_sgf_freq*0.03
 
 
 # FIG 5: Fraction of neuron above threshold in frequency range
@@ -372,29 +375,28 @@ h_fn = y_sgf_fn*0.025
 
 
 
-
-
 ################################################################################
 # COMPUTE P-VALUES for significance of difference from 488 AML32
 ################################################################################
 exclude_H2O2 = tagss.index("AML32H2O2 10mM")
 exclude_H2O2_gur3 = tagss.index("AKS521.1.iH2O2 10mM")
-test_direction = "greater"
+test_direction = "greater" 
+
 
 pval_1E = []
 pval_1F = []
 pval_S2B = []
+
 for k in np.arange(len(tagss)):
     if (k!=ref_tag_i) and (k!= exclude_H2O2_gur3) and (k!= exclude_H2O2):
-        _,pval = mannwhitneyu(np.ravel(avgfracp[ref_tag_i]),np.ravel(avgfracp[k]), method="exact",alternative = test_direction)
-        pval_1E.append(pval)
+    	_,pval = ttest_ind(np.ravel(avgfracp[ref_tag_i]),np.ravel(avgfracp[k]),equal_var=False,alternative=test_direction)
+    	pval_1E.append(pval)
 
-        _,pval = mannwhitneyu(np.ravel(freq_below[ref_tag_i]),np.ravel(freq_below[k]), method="exact",alternative = test_direction)
-        pval_1F.append(pval)
+    	_,pval = ttest_ind(np.ravel(freq_below[ref_tag_i]),np.ravel(freq_below[k]),equal_var=False,alternative=test_direction)
+    	pval_1F.append(pval) 
 
-        _,pval = mannwhitneyu(np.ravel(frac_neurons[ref_tag_i]),np.ravel(frac_neurons[k]), method="exact",alternative = test_direction)
-        pval_S2B.append(pval)
-
+    	_,pval = ttest_ind(np.ravel(frac_neurons[ref_tag_i]),np.ravel(frac_neurons[k]),equal_var=False,alternative=test_direction)
+    	pval_S2B.append(pval)
 
 
 
@@ -403,33 +405,34 @@ for k in np.arange(len(tagss)):
 ################################################################################
 k = tagss.index("AML32H2O2 10mM")
 k2 = tagss.index("505 AML32")
-test_direction = "less"
+test_direction = "less" 
 
-_,pval = mannwhitneyu(np.ravel(avgfracp[k2]),np.ravel(avgfracp[k]), method="exact",alternative = test_direction)
+
+_,pval = ttest_ind(np.ravel(avgfracp[k2]),np.ravel(avgfracp[k]),equal_var=False,alternative=test_direction)
 pval_1E.append(pval)
 
-_,pval = mannwhitneyu(np.ravel(freq_below[k2]),np.ravel(freq_below[k]), method="exact",alternative = test_direction)
+_,pval = ttest_ind(np.ravel(freq_below[k2]),np.ravel(freq_below[k]),equal_var=False,alternative=test_direction)
 pval_1F.append(pval)
 
-_,pval = mannwhitneyu(np.ravel(frac_neurons[k2]),np.ravel(frac_neurons[k]), method="exact",alternative = test_direction)
+_,pval = ttest_ind(np.ravel(frac_neurons[k2]),np.ravel(frac_neurons[k]),equal_var=False,alternative=test_direction)
 pval_S2B.append(pval)
 
 
-
 ################################################################################
-# COMPUTE P-VALUES ALSO TO COMPARE 505 WT + H202 -> 505 gur-3 + H202
+# COMPUTE P-VALUES ALSO TO COMPARE  505 gur-3 + H202 -> 505 WT + H202
 ################################################################################
-k = tagss.index("AKS521.1.iH2O2 10mM")
-k2 = tagss.index("AML32H2O2 10mM")
-test_direction = "greater"
+k2 = tagss.index("AKS521.1.iH2O2 10mM")
+k = tagss.index("AML32H2O2 10mM")
+test_direction = "less" 
 
-_,pval = mannwhitneyu(np.ravel(avgfracp[k2]),np.ravel(avgfracp[k]), method="exact",alternative = test_direction)
+
+_,pval = ttest_ind(np.ravel(avgfracp[k2]),np.ravel(avgfracp[k]),equal_var=False,alternative=test_direction)
 pval_1E.append(pval)
 
-_,pval = mannwhitneyu(np.ravel(freq_below[k2]),np.ravel(freq_below[k]), method="exact",alternative = test_direction)
+_,pval = ttest_ind(np.ravel(freq_below[k2]),np.ravel(freq_below[k]),equal_var=False,alternative=test_direction)
 pval_1F.append(pval)
 
-_,pval = mannwhitneyu(np.ravel(frac_neurons[k2]),np.ravel(frac_neurons[k]), method="exact",alternative = test_direction)
+_,pval = ttest_ind(np.ravel(frac_neurons[k2]),np.ravel(frac_neurons[k]),equal_var=False,alternative=test_direction)
 pval_S2B.append(pval)
 
 
@@ -461,31 +464,29 @@ for k in np.arange(len(tagss)):
     #tags = re.sub("AKS521.1.iH2O2 10mM","505 AKS521.1.i\nH$_2$O$_2$",tags)
 
     # FIG 1 Average fraction of power in frequency band
-    ax1.boxplot(avgfracp[k],positions=[k],boxprops={"color":cs[k],"linewidth":2}, 
+    ax1.boxplot(avgfracp[k],positions=[k],patch_artist = True, boxprops={"color":cs[k], "facecolor" : cs[k],"linewidth":1.3, 'alpha':0.4},
                 meanline = True,meanprops={"color":cs[k],"linewidth":2,"linestyle":'solid'},
                 medianprops={"linewidth":0},showmeans = True, widths=bar_width,
                 showfliers=False, whiskerprops = {"linewidth":0},capprops= {"linewidth":0}) 
     means = np.mean(avgfracp[k])
     std = np.std(avgfracp[k])
+    ax1.errorbar(k,means, std, ecolor = cs[k], capsize = 6, fmt = '.k')# show mean
 
-    ax1.errorbar(k,means, std, ecolor = 'black', capsize = 6, fmt = '.k')
     x_scatter_avgfracp = k*dn + mf.plt.simple_beeswarm(avgfracp[k])*bar_width/2
     if (k!=2) and (k!=4) and (k!=6):
     	F1E.append(x_scatter_avgfracp)
-    ax1.scatter(x_scatter_avgfracp,avgfracp[k],edgecolor=cs[k],facecolor=cs[k],s=50,alpha=0.8,)
+    ax1.scatter(x_scatter_avgfracp,avgfracp[k],edgecolor=cs[k],facecolor=cs[k],s=40,alpha=0.75)
 
     # Significance of difference from 488 AML32
     if (k!=ref_tag_i) and (k!= exclude_H2O2_gur3) and (k!= exclude_H2O2):
-        pval = pval_corr_1E[k-1]
-        stars = mf.plt.p_to_stars(pval)
-        y0avg = np.average(avgfracp[ref_tag_i])
-        dyy = (np.average(avgfracp[k])-y0avg)/y0avg
-        smallergreater = "smaller" if np.sign(dyy)==-1 else "greater"
-        print("###DF/F of",tagss[k],"is",np.around(dyy,2),smallergreater,
-              "than "+tagss[ref_tag_i]+" with p",
-              np.format_float_scientific(pval,1))
+    	pval = pval_corr_1E[k-1]
+    	stars = mf.plt.p_to_stars(pval)
+    	y0avg = np.average(avgfracp[ref_tag_i])
+    	dyy = (np.average(avgfracp[k])-y0avg)/y0avg
+    	smallergreater = "smaller" if np.sign(dyy)==-1 else "greater"
+    	print("###DF/F of",tagss[k],"is",np.around(dyy,2),smallergreater,"than "+tagss[ref_tag_i]+" with p",np.format_float_scientific(pval,1))
         
-        if stars not in ["",]:
+    	if stars not in ["",]:
             if stars == "n.s.": stars = "p="+str(np.around(pval,2))
             #  add a line to show what is being compared.
             x1 = k
@@ -497,23 +498,23 @@ for k in np.arange(len(tagss)):
             signdyy = "+" if np.sign(dyy)==1 else "-"
             ax1.text(0.5*(x1+x2), y_sgf_avgfracp+h_avgfracp+h_avgfracp/5.0,
                         signdyy+str(int(abs(dyy)*100))+"% "+stars,
-                        ha="center", color="black", fontsize = 12)
+                        ha="center", color="black", fontsize = 15)
 
     
     # Figure 4 frequency below which resides 50% of the spectral power
     freq = freq_below[k]
-    ax4.boxplot(freq,positions=[k],boxprops={"color":cs[k],"linewidth":2}, 
+    ax4.boxplot(freq,positions=[k],patch_artist = True,boxprops={"color":cs[k], "facecolor" : cs[k],"linewidth":1.3, 'alpha':0.4}, 
                 meanline = True,meanprops={"color":cs[k],"linewidth":2,"linestyle":'solid'},
                 medianprops={"linewidth":0},showmeans = True, widths=bar_width,
                 showfliers=False, whiskerprops = {"linewidth":0},capprops= {"linewidth":0}) 
     means = np.mean(freq_below[k])
     std = np.std(freq_below[k])
+    ax4.errorbar(k,means, std, ecolor = cs[k], capsize = 6, fmt = '.k')
 
-    ax4.errorbar(k,means, std, ecolor = 'black', capsize = 6, fmt = '.k')
     x_scatter_freq = k*dn + mf.plt.simple_beeswarm(freq)*bar_width/2
     if (k!=2) and (k!=4) and (k!=6):
     	F1F.append(x_scatter_freq)
-    ax4.scatter(x_scatter_freq,freq,edgecolor=cs[k],facecolor=cs[k],s=50,alpha=0.8,) 
+    ax4.scatter(x_scatter_freq,freq,edgecolor=cs[k],facecolor=cs[k],s=40,alpha=0.75) 
 
     # Significance of difference from 488 AML32
     if (k!=ref_tag_i) and (k!= exclude_H2O2_gur3) and (k!= exclude_H2O2):
@@ -538,20 +539,21 @@ for k in np.arange(len(tagss)):
             signdyy = "+" if np.sign(dyy)==1 else "-"
             ax4.text(0.5*(x1+x2), y_sgf_freq+h_freq+h_freq/5.0,
                         signdyy+str(int(abs(dyy)*100))+"% "+stars,
-                        ha="center", color="black", fontsize=14)
+                        ha="center", color="black", fontsize=18)
 
     # FIG5 Proportion of neurons with fraction of power above threshold
     fn = frac_neurons[k]
-    ax5.boxplot(fn,positions=[k],boxprops={"color":cs[k],"linewidth":2}, 
+    ax5.boxplot(fn,positions=[k],patch_artist = True,boxprops={"color":cs[k], "facecolor" : cs[k],"linewidth":1.3, 'alpha':0.4}, 
                 meanline = True,meanprops={"color":cs[k],"linewidth":2,"linestyle":'solid'},
                 medianprops={"linewidth":0},showmeans = True, widths=bar_width,
                 showfliers=False, whiskerprops = {"linewidth":0},capprops= {"linewidth":0}) 
     means = np.mean(frac_neurons[k])
     std = np.std(frac_neurons[k])
 
-    ax5.errorbar(k,means, std, ecolor = 'black', capsize = 6, fmt = '.k')
+    ax5.errorbar(k,means, std, ecolor = cs[k], capsize = 6, fmt = '.k')
+
     x_scatter_fn = k*dn + mf.plt.simple_beeswarm(fn)*bar_width/2
-    ax5.scatter(x_scatter_fn,fn,edgecolor=cs[k],facecolor=cs[k],s=50,alpha=0.8,)
+    ax5.scatter(x_scatter_fn,fn,edgecolor=cs[k],facecolor=cs[k],s=40,alpha=0.75)
 
     # Significance of difference from 488 AML32
     if (k!=ref_tag_i) and (k!= exclude_H2O2_gur3) and (k!= exclude_H2O2):
@@ -579,7 +581,6 @@ for k in np.arange(len(tagss)):
                         ha="center", color="black", fontsize = 12)
 
 
-    
 ################################################################################
 # PLOT P-VALUES FOR THE RELATIVE INCREASE OF 505 WT -> 505 WT + H202
 ################################################################################
@@ -605,7 +606,7 @@ if stars not in ["",]:
     signdyy = "+" if np.sign(dyy)==1 else "-"
     ax1.text(0.5*(x1+x2), y_sgf_avgfracp+h_avgfracp+h_avgfracp/5.0, 
                 signdyy+str(int(abs(dyy)*100))+"% "+stars, 
-                ha="center", color="black", fontsize = 12)
+                ha="center", color="black", fontsize = 15)
 
 
 # Fig 4 
@@ -627,7 +628,7 @@ if stars not in ["",]:
     signdyy = "+" if np.sign(dyy)==1 else "-"
     ax4.text(0.5*(x1+x2), y_sgf_freq+h_freq+h_freq/5.0, 
                 signdyy+str(int(abs(dyy)*100))+"% "+stars, 
-                ha="center", color="black", fontsize=14)
+                ha="center", color="black", fontsize=18)
 
 
 # FIG 5 
@@ -652,14 +653,15 @@ if stars not in ["",]:
                 ha="center", color="black", fontsize = 12)
 
 
+
 ################################################################################
 # PLOT P-VALUES ALSO TO COMPARE 505 WT + H202 -> 505 gur-3 + H202
 ################################################################################
-k = tagss.index("AKS521.1.iH2O2 10mM")
-k2 = tagss.index("AML32H2O2 10mM")
+k2 = tagss.index("AKS521.1.iH2O2 10mM")
+k = tagss.index("AML32H2O2 10mM")
 
 ## FIG 1
-pval = pval_corr_1E[-1]
+pval = pval_corr_1E[5]
 stars = mf.plt.p_to_stars(pval)
 y0avg = np.average(avgfracp[k2])
 dyy = (np.average(avgfracp[k])-y0avg)/y0avg
@@ -677,10 +679,10 @@ if stars not in ["",]:
     signdyy = "+" if np.sign(dyy)==1 else "-"
     ax1.text(0.5*(x1+x2), y_sgf_avgfracp+h_avgfracp+h_avgfracp/5.0, 
                 signdyy+str(int(abs(dyy)*100))+"% "+stars, 
-                ha="center", color="black", fontsize = 12)
+                ha="center", color="black", fontsize = 15)
 
 # Fig 4
-pval = pval_corr_1F[-1]
+pval = pval_corr_1F[5]
 stars = mf.plt.p_to_stars(pval)
 y0avg = np.average(freq_below[k2])
 dyy = (np.average(freq_below[k])-y0avg)/y0avg
@@ -698,10 +700,10 @@ if stars not in ["",]:
     signdyy = "+" if np.sign(dyy)==1 else "-"
     ax4.text(0.5*(x1+x2), y_sgf_freq+h_freq+h_freq/5.0, 
                 signdyy+str(int(abs(dyy)*100))+"% "+stars, 
-                ha="center", color="black", fontsize=14)
+                ha="center", color="black", fontsize=18)
 
 ## FIG 5 
-pval = pval_corr_S2B[-1]
+pval = pval_corr_S2B[5]
 stars = mf.plt.p_to_stars(pval)
 y0avg = np.average(frac_neurons[k2])
 dyy = (np.average(frac_neurons[k])-y0avg)/y0avg
@@ -737,13 +739,16 @@ for k in range(len(median_metric)):
 
 
 ax1.set_xticks(np.arange(len(tagss)))
-ax1.set_xticklabels([])
+#ax1.set_xticklabels([])
+#ax1.set_yticklabels([])
 ax1.set_xticklabels(lbls)
+ax1.set_ylim(0,0.41)
+ax1.set_yticks([0,0.1,0.2,0.3])
 ax1.spines.right.set_visible(False)
 ax1.spines.top.set_visible(False)
 ax1.set_ylabel("Average fraction of power in "+str(np.around(f_range,3))+" Hz")
-fig1.savefig(fig_dst+"Average fraction of power in "+str(np.around(f_range,3))+" Hz.pdf",dpi=1200,bbox_inches="tight")
-fig1.savefig(fig_dst+"Average fraction of power in "+str(np.around(f_range,3))+" Hz.png",dpi=1200,bbox_inches="tight")
+fig1.savefig(fig_dst+"Average fraction of power in "+str(np.around(f_range,3))+" Hz t test_new.pdf",dpi=300,bbox_inches="tight")
+fig1.savefig(fig_dst+"Average fraction of power in "+str(np.around(f_range,3))+" Hz t test_new.png",dpi=300,bbox_inches="tight")
 
 ax2.set_xlabel("Frequency (Hz)")
 ax2.set_ylabel("Normalized PSD")
@@ -752,6 +757,7 @@ ax2.spines.right.set_visible(False)
 ax2.spines.top.set_visible(False)
 ax2.set_ylim(0,0.2)
 ax2.set_yticks([0,0.1,0.21,])
+ax2.set_xticks([0,0.01,0.02,0.03,0.04])
 #ax2.set_xticklabels([])
 #ax2.set_yticklabels([])
 ax2.set_xlim(0,0.045)
@@ -759,7 +765,7 @@ ax2.axvline(x=0.0066, color = 'black',ls = '--')
 ax2.axvline(x=0.033, color = 'black',ls = '--')
 fig2.tight_layout()
 fig2.savefig(fig_dst+"Power_spectrum.pdf",dpi=300,bbox_inches="tight")
-fig2.savefig(fig_dst+"Pow er_spectrum.png",dpi=300,bbox_inches="tight")
+fig2.savefig(fig_dst+"Power_spectrum.png",dpi=300,bbox_inches="tight")
 
 
 
@@ -769,6 +775,7 @@ ax3.spines.right.set_visible(False)
 ax3.spines.top.set_visible(False)
 ax3.set_ylim(0,1.01)
 ax3.set_yticks([0,0.5,1.0,])
+ax3.set_xticks([0,0.01,0.02,0.03,0.04])
 #ax3.set_xticklabels([])
 #ax3.set_yticklabels([])
 ax3.set_xlim(0,0.045)
@@ -781,33 +788,34 @@ fig3.savefig(fig_dst+"Cumulative_power.png",dpi=300,bbox_inches="tight")
 
 ax4.set_ylabel("Frequency below which resides "+ str(np.round(spectral_edge*100))+"% of the spectral power")
 ax4.set_xticks(np.arange(len(tagss)))
-ax4.set_xticklabels(lbls)
 #ax4.set_xticklabels([])
 #ax4.set_yticklabels([])
+ax4.set_xticklabels(lbls)
+ax4.set_ylim(0,0.0195)
+ax4.set_yticks([0,0.004,0.008,0.012,0.016])
 ax4.spines.right.set_visible(False)
 ax4.spines.top.set_visible(False)
 fig4.tight_layout()
-fig4.savefig(fig_dst+"Spectral_edge.pdf",dpi=300,bbox_inches="tight")
-fig4.savefig(fig_dst+"Spectral_edge.png",dpi=300,bbox_inches="tight")
+fig4.savefig(fig_dst+"Spectral_edge_ttest_new.pdf",dpi=300,bbox_inches="tight")
+fig4.savefig(fig_dst+"Spectral_edge_ttest_new.png",dpi=300,bbox_inches="tight")
 
 
 ax5.set_xticks(np.arange(len(tagss)))
-ax5.set_xticklabels(lbls)
 #ax5.set_xticklabels([])
 #ax5.set_yticklabels([])
+ax5.set_xticklabels(lbls)
+ax5.set_ylim(0,85)
 ax5.spines.right.set_visible(False)
 ax5.spines.top.set_visible(False)
 ax5.set_ylabel("% of neurons with fraction of power in "+str(np.around(f_range,3))+\
                " Hz\n> "+str(threshold),)
-
+ax5.axhline(y = 6, color = 'black', linestyle = '--')
 fig5.tight_layout()
-fig5.savefig(fig_dst+"fraction_neurons_oscillating_power_"+str(np.around(f_range,3))+".pdf",dpi=1200,bbox_inches="tight")
-fig5.savefig(fig_dst+"fraction_neurons_oscillating_power_"+str(np.around(f_range,3))+".png",dpi=1200,bbox_inches="tight")
+fig5.savefig(fig_dst+"fraction_neurons_oscillating_power_"+str(np.around(f_range,3))+"_ttest_new.pdf",dpi=300,bbox_inches="tight")
+fig5.savefig(fig_dst+"fraction_neurons_oscillating_power_"+str(np.around(f_range,3))+"_ttest_new.png",dpi=300,bbox_inches="tight")
 
 
 plt.show()
-
-
 
 
 
